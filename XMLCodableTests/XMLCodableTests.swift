@@ -130,4 +130,59 @@ value2
         let value = try! XMLDecoder().decode(Root.self, from: xml.data(using: .utf8)!)
         XCTAssertEqual(value, Root(dic: ["key1": Root.Item(child: Root.Child(id: 1)), "key2": Root.Item(child: Root.Child(id: 2))]))
     }
+    
+    func testInheritance() {
+let xml = """
+<?xml version="1.0"?>
+<view id="view0">
+    <view id="view1">
+        <frame id="frame1" name="Second Frame">
+            <view id="view2"/>
+        </frame>
+    </view>
+    <frame id="frame0" name="First Frame"/>
+</view>
+"""
+        
+        class View: Decodable, CustomStringConvertible {
+            var description: String {
+                return "id: \(id)\nsubviews: \(subviews ?? [])"
+            }
+            
+            var id: String
+            var subviews: [View]?
+            required init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                id = try container.decode(String.self, forKey: .id)
+                let frames = try container.decodeIfPresent([Frame].self, forKey: .frame)
+                let views = try container.decodeIfPresent([View].self, forKey: .view)
+                subviews = (views ?? []) + (frames ?? [])
+            }
+            
+            enum CodingKeys: String, CodingKey {
+                case id
+                case view
+                case frame
+            }
+        }
+        
+        class Frame: View {
+            override var description: String {
+                return "name: \(name)\n+\(super.description)"
+            }
+            var name: String
+            
+            enum CodingKeys: String, CodingKey {
+                case name
+            }
+            
+            required init(from decoder: Decoder) throws {
+                name = try decoder.container(keyedBy: CodingKeys.self).decode(String.self, forKey: .name)
+                try super.init(from: decoder)
+            }
+        }
+
+        let value = try! XMLDecoder().decode(View.self, from: xml.data(using: .utf8)!)
+        print(value)
+    }
 }
